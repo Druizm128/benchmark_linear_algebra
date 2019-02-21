@@ -1,0 +1,306 @@
+---
+title: "Benchmark de librerías de álgebra lineal en R"
+author: "Dante Ruiz 183340 y Laura López 144089 (Equipo13)"
+date: "2/14/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introducción
+
+A continuación se presentan los resultados de un benchmark que se realizó para comparar el tiempo de ejecución de diferentes operaciones de álgebra lineal utilizando diferentes compilaciones de R. 
+
+## Procedimiento
+
+El ejercicio se realizó utilizando contenedores de Docker utilizando una imagen de Ubuntu 18.04. Por lo que para hacer replicable este procedimiento se asume que el usuario tiene instalado Docker y descargado la imagen de Ubuntu como se muestra a continuación.
+
+```{bash, eval=FALSE}
+docker pull ubuntu
+```
+
+En cada contenedor de Docker se hace una instalación limpia de la base de R, sobre la cual se instalaran en distintas librerías de álgebra lineal para compilar el paquete estadístico.
+
+Para este benchmark se construyeron cuatro contenedores con las siguientes características:
+
+1. *R-Base:* Ubuntu 18.04 + R-base 3.4.4
+2. *R con openblas:* Ubuntu 18.04 + R-base 3.4.4 + libopenblas-base
+3. *R con atlas:* Ubuntu 18.04 + R-base 3.4.4 + libatlas-base-dev
+4. *R con lapack:* Ubuntu 18.04 + R-base 3.4.4 + liblapacke-dev
+
+Para evaluar el desempeño de cada una de las configuraciones de R con las distintas librerías de álgebra lineal se realizaron ocho pruebas:
+
+1. Multiplicación de dos vectores
+2. Multiplicación de matriz por vector
+3. Multiplicación de una matriz por una matriz
+4. Calcular los eigen valores de una matriz
+5. Invertir una matriz
+6. Resolver un sistema de ecuaciones lineales
+7. Análisis de componentes principales
+8. Descomposición de valores singulares de una matriz
+
+Estas pruebas fueron realizadas con una matriz M de tamaño 2500 x 2500 utilizando valores aleatorios de una distribución uniforme. Las variables aleatorias que se extrajeron de la distribución uniforme toman valores entre 0 y 1000.
+
+Asimismo, se utilizaron vectores de 1000 x 1 con valores de una distribución uniforme que toma valores entre 0 y 1000.
+
+Lo que mide cada una de las pruebas es el tiempo que tarda el CPU del usuario en procesar las operaciones. La función que se utilizó en R es la de **system.time()**. Específicamente analizará el resultado de user.self
+
+A continuación se muestra el código que se utilizó en las cuatro pruebas:
+
+```{r, eval=FALSE}
+# Comienza prueba
+print("Test started!")
+
+# Fijar el tamaño de las matrices y vectores
+tamano <- 2500
+
+# Multiplicación de dos vectores
+x <- runif(tamano,0,1000)
+# Se crea una vector de 1000 x 1 y adicionalmente se perturba con valores aleatorios entre 250 y 750
+y <- runif(tamano,0,1000) + runif(1,250,750)
+
+print("t1...")
+t1 <- system.time({ 
+  x %*% y
+})
+
+# Crear una matriz de 2500 x 2500 utilizando números aleatorios de una distribución uniforme.
+set.seed(1234)
+M<-matrix(runif(tamano*tamano,min=0,1000),tamano,tamano)
+
+# Mutiplicación de matriz por vector
+print("t2...")
+t2 <- system.time({ 
+  M %*% x
+})
+
+# Multiplicación de una matriz por una matriz
+print("t3...")
+t3 <- system.time({ 
+  (M %*% t(M))
+})
+
+# Calcular los eigen valores de una matriz
+print("t4...")
+t4 <- system.time({ 
+  eigen(M)
+})
+
+# Invertir una matriz
+print("t5...")
+t5 <- system.time({ 
+  solve(M)
+})
+
+# Resolver un sistema de ecuaciones lineals
+print("t6...")
+t6 <- system.time({ 
+  solve(M,y)
+})
+
+# Análisis de componentes principales
+print("t7...")
+t7 <- system.time({ 
+  princomp(M)
+})
+
+# Descomposición de valores singulares
+print("t8...")
+t8 <- system.time({ 
+  svd(M)
+})
+
+# Escribir los resultados en un csv
+tiempos <- as.data.frame(rbind(t1,t2,t3,t4,t5,t6,t7,t8))
+write.csv(tiempos, "resultados_prueba.csv")
+
+# Termina prueba
+print("Test finished!")
+```
+
+Los resultados de cada una de las pruebas se guarda en los subdirectorios utilizando el nombre de **resultados_prueba.csv**.
+
+
+## Configuración de contenedores
+
+A continuación se muestra como configurar cada uno de los contenedores desde la terminal de bash o docker.
+
+Cada uno de los contenedores se encuentra ligado a un volumen local con el **directorio benchmarks** en la máquina local que contiene **cuatro subdirectorios**:
+
+1. rbase
+2. openblass
+3. atlas
+4. lapack
+
+### Primer docker solo con r-base
+
+Sustituir **<ruta_local_a_directorio_benchmarks>** por la ruta al directorio benchmarks creado en la máquina local. Dicho directorio debe contener el **subdirectorio rbase** el cual contiene el **script.R** para realizar el benchmark.
+
+```{bash, eval=FALSE}
+# Primer docker solo con r-base
+docker run --rm -it -v <ruta_local_a_directorio_benchmarks>:/data ubuntu /bin/bash
+apt-get update
+apt-get install sudo
+sudo apt-get install r-base
+cd /data/rbase/
+Rscript script.R
+exit
+```
+
+### Segundo docker con r-base y open-blas
+
+Sustituir **<ruta_local_a_directorio_benchmarks>** por la ruta al directorio benchmarks creado en la máquina local. Dicho directorio debe contener el **subdirectorio openblass** el cual contiene el **script.R** para realizar el benchmark.
+
+```{bash, eval=FALSE}
+# Segundo docker con r-base y open-blas
+docker run --rm -it -v <ruta_local_a_directorio_benchmarks>:/data ubuntu /bin/bash
+apt-get update
+apt-get install sudo
+sudo apt-get install r-base
+sudo apt-get install libopenblas-base r-base
+cd /data/openblass/
+Rscript script.R
+exit
+```
+
+### Tercer docker con r-base y atlas
+
+Sustituir **<ruta_local_a_directorio_benchmarks>** por la ruta al directorio benchmarks creado en la máquina local. Dicho directorio debe contener el **subdirectorio atlas** el cual contiene el **script.R** para realizar el benchmark.
+
+```{bash, eval=FALSE}
+# Tercer docker con r-base y atlas
+docker run --rm -it -v <ruta_local_a_directorio_benchmarks>:/data ubuntu /bin/bash
+apt-get update
+apt-get install sudo
+sudo apt-get install r-base
+sudo apt-get install libatlas-base-dev
+cd /data/atlas/
+Rscript script.R
+exit
+```
+
+### Cuarto docker con r-base y lapack
+
+Sustituir **<ruta_local_a_directorio_benchmarks>** por la ruta al directorio benchmarks creado en la máquina local. Dicho directorio debe contener el **subdirectorio atlas** el cual contiene el **lapack** para realizar el benchmark.
+
+```{bash, eval=FALSE}
+# Cuarto docker con r-base y lapack
+docker run --rm -it -v <ruta_local_a_directorio_benchmarks>:/data ubuntu /bin/bash
+apt-get update
+apt-get install sudo
+sudo apt-get install r-base
+sudo apt-get install liblapacke-dev
+cd /data/lapack/
+Rscript script.R
+exit
+```
+
+## Resultados
+
+A continuación se muestran los resultados del benchmark realizados a cada una de las configuraciones de R con la librerías de álgebra lineal.
+
+Este análisis no se realizó en ningún Docker, ya que instalar paquetes para el análisis y gráficas toma más tiempo. En este sentido, el análisis de los resultados se realizó con la versión de R en la máquina local y utilizando la librería **tidyverse**.
+
+En el siguiente código se recuperan los archivos **resultados_prueba.csv** de los distintos subidrectorios: rbase, openblass, atlas, lapack.
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+
+# Leer los datos de cada prueba
+datos_rbase <- read_csv("rbase/resultados_prueba.csv")
+datos_openblass <- read_csv("openblass/resultados_prueba.csv")
+datos_atlas <- read_csv("atlas/resultados_prueba.csv")
+datos_lapack <- read_csv("lapack/resultados_prueba.csv")
+
+# Poner el nombre de la prueba
+datos_rbase <- datos_rbase %>% mutate(configuracion = "ubuntu_r_base") %>% rename("prueba" = X1)
+datos_openblass <- datos_openblass %>% mutate(configuracion = "ubuntu_openblas") %>% rename("prueba" = X1)
+datos_atlas <- datos_atlas %>% mutate(configuracion = "ubuntu_atlas") %>% rename("prueba" = X1)
+datos_lapack <- datos_lapack %>% mutate(configuracion = "ubuntu_lapack") %>% rename("prueba" = X1)
+
+# Juntar los resultados en un data frame
+datos <- rbind(datos_rbase,datos_openblass,datos_atlas, datos_lapack)
+```
+
+Una vez recuperados los archivos se juntan en un solo data frame para ser analizados de manera gráfica.
+
+```{r}
+# Graficar resultados
+ggplot(datos, aes(x=prueba, y=user.self)) + 
+  geom_bar(stat = 'identity', aes(fill = configuracion), position = "dodge") + 
+  xlab("prubea") + 
+  ylab("segundos") +
+  facet_wrap(~prueba, scales = "free")
+```
+
+Nombre de las pruebas:
+
+* t1: Multiplicación de dos vectores
+
+El producto punto de dos vectores es una operación muy rápida en las cuatro configuraciones de R, al punto que no se observan diferencias en eficiencia significativas.
+
+```{r}
+datos %>% select(prueba, configuracion, user.self, sys.self, elapsed) %>% filter(prueba == "t1") %>% arrange(prueba, user.self)
+```
+
+* t2: Multiplicación de matriz por vector
+
+El producto punto entre una matriz y un vector es una operación muy eficiente en atlas, mientras que en r base, lapack y openblass es una operación relativamente similar en eficiencia. Estas últimas tardaron un segundo en ejecutar la operación.
+
+```{r}
+datos %>% select(prueba, configuracion, user.self, sys.self, elapsed) %>% filter(prueba == "t2") %>% arrange(prueba, user.self)
+```
+
+* t3: Multiplicación de una matriz por una matriz
+
+El producto punto entre dos matrices en este caso la matriz M por su matriz traspuesta es una operación relativamente sencilla. La configuración más eficiente fue openblas y la segunda más eficiente atlas. 
+
+```{r}
+datos %>% select(prueba, configuracion, user.self, sys.self, elapsed) %>% filter(prueba == "t3") %>% arrange(prueba, user.self)
+```
+
+* t4: Calcular los eigen valores de una matriz
+
+El cálculo de eigen valores de una matriz fue la operación más demandante. La configuración más rápida fue openblas, seguida de atlas.
+
+```{r}
+datos %>% select(prueba, configuracion, user.self, sys.self, elapsed) %>% filter(prueba == "t4") %>% arrange(prueba, user.self)
+```
+
+* t5: Invertir una matriz
+
+Openblas y atlas fueron las configuraciones más rápidas para ejecutar el cálculo de eigen valores de la matriz.
+
+```{r}
+datos %>% select(prueba, configuracion, user.self, sys.self, elapsed) %>% filter(prueba == "t5") %>% arrange(prueba, user.self)
+```
+
+* t6: Resolver un sistema de ecuaciones lineales
+
+Openblas y atlas son las configuraciones más rápidas para resolver el sistema de ecuaciones lineales.
+
+```{r}
+datos %>% select(prueba, configuracion, user.self, sys.self, elapsed) %>% filter(prueba == "t6") %>% arrange(prueba, user.self)
+```
+
+* t7: Análisis de componentes principales
+
+El cálculo de análisis de componentes principales es una operación demandante y las configuraciones openblas y atlas fueron las más eficientes hasta cuatro veces.
+
+```{r}
+datos %>% select(prueba, configuracion, user.self, sys.self, elapsed) %>% filter(prueba == "t7") %>% arrange(prueba, user.self)
+```
+
+* t8: Descomposición de valores singulares de una matriz
+
+La descomposición de valores singulares de una matriz es también una operación demandante. La configuración de atlas y openblas fueron más eficientes que sus contrapartes hasta dos y media veces.
+
+```{r}
+datos %>% select(prueba, configuracion, user.self, sys.self, elapsed) %>% filter(prueba == "t8") %>% arrange(prueba, user.self)
+```
+
+## Conclusión
+
+En general las librerías de álgebra lineal openblas y atlas fueron las más eficientes para las ocho pruebas que se realizaron. Es posible observar sus bondades en la medida que incrementa la escala de los datos, particularmente en operaciones más complicadas.
